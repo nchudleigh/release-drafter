@@ -247,6 +247,44 @@ Previous tag: ''
         expect.assertions(1)
       })
 
+      it('makes draft with tag name including the tag template postfix', async () => {
+        getConfigMock('config-with-next-versioning-postfix.yml')
+
+        nock('https://api.github.com')
+          .get(
+            '/repos/toolmantim/release-drafter-test-project/releases?per_page=100'
+          )
+          .reply(200, [require('./fixtures/prerelease')])
+
+        nock('https://api.github.com')
+          .post('/graphql', body =>
+            body.query.includes('query findCommitsWithAssociatedPullRequests')
+          )
+          .reply(200, require('./fixtures/graphql-commits-merge-commit.json'))
+
+        nock('https://api.github.com')
+          .post(
+            '/repos/toolmantim/release-drafter-test-project/releases',
+            body => {
+              expect(body).toMatchObject({
+                body: `Placeholder with example. Automatically calculated values are next major=3.0.0, minor=2.1.0, patch=2.0.1`,
+                draft: true,
+                name: 'v2.0.1 (Code name: Placeholder)',
+                tag_name: 'v2.0.1-staging'
+              })
+              return true
+            }
+          )
+          .reply(200)
+
+        await probot.receive({
+          name: 'push',
+          payload: require('./fixtures/push')
+        })
+
+        expect.assertions(1)
+      })
+
       describe('with custom changes-template config', () => {
         it('creates a new draft using the template', async () => {
           getConfigMock('config-with-changes-templates.yml')
